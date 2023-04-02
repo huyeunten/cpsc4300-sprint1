@@ -6,12 +6,14 @@
 using namespace std;
 
 const std::string QUIT = "quit";
+const unsigned int BLOCK_SZ = 4096;
+const char *MILESTONE1 = "milestone1.db";
 
 std::string execute(hsql::SQLParserResult* query);
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
-        std::cout << "Usage: ./milestone1 /path" << std::endl;
+        std::cout << "Usage: ./milestone1 path" << std::endl;
         return -1;
     }
 
@@ -19,7 +21,21 @@ int main(int argc, char *argv[]) {
 
     // maybe check if directory is valid?
 
-    // TODO: create db in directory
+    // Create database in directory
+    // Path must be from root of directory (eg cpsc4300/data)
+    const char *home = std::getenv("HOME");
+	std::string envdir = std::string(home) + "/" + directory;
+
+    DbEnv env(0U);
+    env.set_message_stream(&std::cout);
+	env.set_error_stream(&std::cerr);
+	env.open(envdir.c_str(), DB_CREATE | DB_INIT_MPOOL, 0);
+
+	Db db(&env, 0);
+	db.set_message_stream(env.get_message_stream());
+	db.set_error_stream(env.get_error_stream());
+	db.set_re_len(BLOCK_SZ);
+	db.open(NULL, MILESTONE1, NULL, DB_RECNO, DB_CREATE | DB_TRUNCATE, 0644);
 
     std::string response;
     while (response != QUIT) {
@@ -47,13 +63,13 @@ int main(int argc, char *argv[]) {
 std::string execute(hsql::SQLParserResult* query) {
     std::string finalQuery = "";
     int n = query->size();
-    hsql::StatementType statementType = query->getStatement(0)->type();
-    std::cout << "Statement type is: " << statementType << std::endl;
+    //hsql::StatementType statementType = query->getStatement(0)->type();
+    //std::cout << "Statement type is: " << statementType << std::endl;
 
     // TODO: turn query variable into formal sql query
     for (int i = 0; i < n; i++) {
         const hsql::SQLStatement* statement = query->getStatement(i);
-        hsql::printStatementInfo(statement);
+        //hsql::printStatementInfo(statement);
 
         hsql::StatementType statementType = statement->type();
         std::cout << "Statement type is: " << statementType << std::endl;
@@ -72,19 +88,23 @@ std::string execute(hsql::SQLParserResult* query) {
                 break;
             case hsql::kStmtSelect:
                 finalQuery += "SELECT";
-                hsql::SelectStatement selectStatement = hsql::SelectStatement();
+                //hsql::SelectStatement selectStatement = hsql::SelectStatement();
 
-                cout << "Where clause:" << endl;
-                hsql::printExpression(selectStatement.whereClause, 2);
+                // hsql::printSelectStatementInfo(selectStatement, 1);
 
-                // cout << "Table:" << endl;
+                //cout << "Where clause:" << endl;
+                //hsql::printExpression(selectStatement.whereClause, 2);
+
+                // std::cout << "Table:" << std::endl;
                 // hsql::printTableRefInfo(selectStatement.fromTable, 2);
                 // cout << "Columns to select:" << endl;
-                // for (hsql::Expr* expr : selectStatement.selectList) hsql::printExpression(expr, 2);
-                // std::cout << "Columns we're selecting:" << std::endl;
+                // for (hsql::Expr* expr : selectStatement->selectList) hsql::printExpression(expr, 2);
+                //     std::cout << "Columns we're selecting:" << std::endl;
 
-                // for(hsql::Expr* expr : ((hsql::SelectStatement*)statement)->selectList)
+                //for(hsql::Expr* expr : ((hsql::SelectStatement*)statement)->selectList)
                 //     hsql::printExpression(expr, 2);
+
+                //delete selectStatement;
 
                 break;
             
