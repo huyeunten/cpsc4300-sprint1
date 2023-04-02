@@ -3,6 +3,7 @@
 #include "db_cxx.h"
 #include <iostream>
 #include <cstring>
+using namespace std;
 
 const std::string QUIT = "quit";
 
@@ -71,6 +72,15 @@ std::string execute(hsql::SQLParserResult* query) {
                 break;
             case hsql::kStmtSelect:
                 finalQuery += "SELECT";
+                hsql::SelectStatement selectStatement = hsql::SelectStatement();
+
+                cout << "Where clause:" << endl;
+                hsql::printExpression(selectStatement.whereClause, 2);
+
+                // cout << "Table:" << endl;
+                // hsql::printTableRefInfo(selectStatement.fromTable, 2);
+                // cout << "Columns to select:" << endl;
+                // for (hsql::Expr* expr : selectStatement.selectList) hsql::printExpression(expr, 2);
                 // std::cout << "Columns we're selecting:" << std::endl;
 
                 // for(hsql::Expr* expr : ((hsql::SelectStatement*)statement)->selectList)
