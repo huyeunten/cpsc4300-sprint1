@@ -46,9 +46,39 @@ int main(int argc, char *argv[]) {
 std::string execute(hsql::SQLParserResult* query) {
     std::string finalQuery = "";
     int n = query->size();
+    hsql::StatementType statementType = query->getStatement(0)->type();
+    std::cout << "Statement type is: " << statementType << std::endl;
+
     // TODO: turn query variable into formal sql query
     for (int i = 0; i < n; i++) {
-        hsql::printStatementInfo(query->getStatement(i));
+        const hsql::SQLStatement* statement = query->getStatement(i);
+        hsql::printStatementInfo(statement);
+
+        hsql::StatementType statementType = statement->type();
+        std::cout << "Statement type is: " << statementType << std::endl;
+
+        switch(statementType){
+            case hsql::kStmtCreate: // create statement
+                finalQuery += "CREATE TABLE ";
+                // hsql::CreateType type = hsql::CreateType.kTable;
+                // hsql::CreateStatement createStatement = hsql::CreateStatement(); // assume create statements are always creating a table
+                // std::cout << "Table name: " << createStatement.tableName << std::endl;
+                // std::cout << "File path: " << statement->filePath << std::endl;
+                // std::cout << "columns: " << statement->columns << std::endl;
+                break;
+            case hsql::kStmtInsert: // insert statement
+                finalQuery += "INSERT";
+                break;
+            case hsql::kStmtSelect:
+                finalQuery += "SELECT";
+                // std::cout << "Columns we're selecting:" << std::endl;
+
+                // for(hsql::Expr* expr : ((hsql::SelectStatement*)statement)->selectList)
+                //     hsql::printExpression(expr, 2);
+
+                break;
+            
+        }
     }
     return finalQuery;
 }
