@@ -155,8 +155,8 @@ std::string parseCreate(std::string response) {
             // convert type to uppercase
             for (char &c : temp)
                 c = std::toupper(c);
-            if (temp == "INTEGER")
-                temp = "INT";
+            if (temp == "INTEGER,")
+                temp = "INT,";
             parsed += temp + " ";
         }
         isName = !isName;
