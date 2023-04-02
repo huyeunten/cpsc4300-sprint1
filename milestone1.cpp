@@ -3,13 +3,15 @@
 #include "db_cxx.h"
 #include <iostream>
 #include <cstring>
+#include <sstream>
 using namespace std;
 
 const std::string QUIT = "quit";
 const unsigned int BLOCK_SZ = 4096;
 const char *MILESTONE1 = "milestone1.db";
 
-std::string execute(hsql::SQLParserResult* query);
+std::string execute(hsql::SQLParserResult* query, std::string response);
+std::string parseCreate(std::string response);
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
@@ -48,7 +50,7 @@ int main(int argc, char *argv[]) {
         hsql::SQLParserResult* result = hsql::SQLParser::parseSQLString(responseArray);
 
         if (result->isValid()) {
-            std::string sql = execute(result);
+            std::string sql = execute(result, response);
             std::cout << sql << std::endl;
         }
         else if (response != QUIT) {
@@ -60,7 +62,7 @@ int main(int argc, char *argv[]) {
     }
 }
 
-std::string execute(hsql::SQLParserResult* query) {
+std::string execute(hsql::SQLParserResult* query, std::string response) {
     std::string finalQuery = "";
     int n = query->size();
     //hsql::StatementType statementType = query->getStatement(0)->type();
@@ -76,12 +78,29 @@ std::string execute(hsql::SQLParserResult* query) {
 
         switch(statementType){
             case hsql::kStmtCreate: // create statement
-                finalQuery += "CREATE TABLE ";
-                // hsql::CreateType type = hsql::CreateType.kTable;
-                // hsql::CreateStatement createStatement = hsql::CreateStatement(); // assume create statements are always creating a table
-                // std::cout << "Table name: " << createStatement.tableName << std::endl;
-                // std::cout << "File path: " << statement->filePath << std::endl;
-                // std::cout << "columns: " << statement->columns << std::endl;
+                {
+
+                    finalQuery += parseCreate(response);
+
+                    // finalQuery += "CREATE TABLE ";
+                
+                    //hsql::CreateStatement::CreateType type = hsql::CreateStatement::CreateType.kTable;
+                    // hsql::CreateStatement *createStatement = new hsql::CreateStatement(hsql::CreateStatement::kTable); // assume create statements are always creating a table
+                    
+                    // std::string name = "students";
+                    
+                    // char* nameArray = new char[name.length() + 1];
+                    // strcpy(nameArray, name.c_str());
+
+                    // createStatement->tableName = nameArray;
+                    // hsql::printCreateStatementInfo(createStatement, 0);
+                    // //std::cout << "Table name: " << createStatement->tableName << std::endl;
+                    // //std::cout << "File path: " << createStatement->filePath << std::endl;
+                    // //std::cout << "columns: " << createStatement->columns << std::endl;
+
+                    // delete createStatement;
+                    // delete nameArray;
+                }
                 break;
             case hsql::kStmtInsert: // insert statement
                 finalQuery += "INSERT";
@@ -111,4 +130,37 @@ std::string execute(hsql::SQLParserResult* query) {
         }
     }
     return finalQuery;
+}
+
+std::string parseCreate(std::string response) {
+    std::stringstream ss(response);
+
+    std::string parsed = "CREATE TABLE ";
+    std::string temp;
+    // get rid of create table
+    ss >> temp >> temp;
+
+    // name
+    ss >> temp;
+
+    parsed += temp + " ";
+
+    bool isName = true;
+    // get column names and types
+    while (ss >> temp) {
+        if (isName) {
+            parsed += temp + " ";
+        }
+        else {
+            // convert type to uppercase
+            for (char &c : temp)
+                c = std::toupper(c);
+            if (temp == "INTEGER")
+                temp = "INT";
+            parsed += temp + " ";
+        }
+        isName = !isName;
+    }
+
+    return parsed;
 }
