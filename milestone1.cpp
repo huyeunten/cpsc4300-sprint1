@@ -4,6 +4,7 @@
 #include <iostream>
 #include <cstring>
 #include <sstream>
+#include <cstdio>
 using namespace std;
 
 const std::string QUIT = "quit";
@@ -12,13 +13,14 @@ const char *MILESTONE1 = "milestone1.db";
 
 std::string execute(hsql::SQLParserResult* query, std::string response);
 std::string parseCreate(std::string response);
+string parseSelect(string response);
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
         std::cout << "Usage: ./milestone1 path" << std::endl;
         return -1;
     }
-
+    cout << "Hi";
     std::string directory = argv[1];
 
     // maybe check if directory is valid?
@@ -27,6 +29,8 @@ int main(int argc, char *argv[]) {
     // Path must be from root of directory (eg cpsc4300/data)
     const char *home = std::getenv("HOME");
 	std::string envdir = std::string(home) + "/" + directory;
+
+    cout << std::string(home);
 
     DbEnv env(0U);
     env.set_message_stream(&std::cout);
@@ -103,33 +107,86 @@ std::string execute(hsql::SQLParserResult* query, std::string response) {
                 }
                 break;
             case hsql::kStmtInsert: // insert statement
+            {
                 finalQuery += "INSERT";
                 break;
-            case hsql::kStmtSelect:
-                finalQuery += "SELECT";
-                //hsql::SelectStatement selectStatement = hsql::SelectStatement();
+            }case hsql::kStmtSelect:{
 
-                // hsql::printSelectStatementInfo(selectStatement, 1);
+                hsql::SelectStatement* selectStatement = (hsql::SelectStatement*)statement;
+                hsql::TableRef* table = selectStatement->fromTable;
+                hsql::Expr* whereClause = selectStatement->whereClause;
 
-                //cout << "Where clause:" << endl;
-                //hsql::printExpression(selectStatement.whereClause, 2);
-
-                // std::cout << "Table:" << std::endl;
-                // hsql::printTableRefInfo(selectStatement.fromTable, 2);
-                // cout << "Columns to select:" << endl;
-                // for (hsql::Expr* expr : selectStatement->selectList) hsql::printExpression(expr, 2);
-                //     std::cout << "Columns we're selecting:" << std::endl;
-
-                //for(hsql::Expr* expr : ((hsql::SelectStatement*)statement)->selectList)
-                //     hsql::printExpression(expr, 2);
-
-                //delete selectStatement;
-
+                hsql::TableRefType tableRefType = table->type; // type of table expression (join, table name, etc)
+                switch(tableRefType){
+                    case hsql::kTableName:{
+                        char* tableName = table->name;
+                        string s(tableName);
+                        cout << s;
+                        break;
+                    }
+                    case hsql::kTableJoin:{ // if the table ref is a join expression
+                        hsql::JoinDefinition* joinDefinition = table->join;
+                        hsql::JoinType joinType = joinDefinition->type;
+                        hsql::TableRef* leftTable = joinDefinition->left;
+                        hsql::TableRef* rightTable = joinDefinition->right;
+                        hsql::Expr* joinCondition = joinDefinition->condition;
+                        
+                        switch(joinType){
+                            case hsql::kJoinLeft:{
+                                cout << "LEFT JOIN";
+                                break;
+                            }case hsql::kJoinRight:{
+                                cout << "RIGHT JOIN";
+                                break;
+                            }case hsql::kJoinInner:{
+                                cout << "INNER JOIN";
+                                break;
+                            }case hsql::kJoinOuter:{
+                                cout << "OUTER JOIN";
+                                break;
+                            }
+                        }
+                    }
+                }
                 break;
-            
+            }
         }
     }
     return finalQuery;
+}
+
+string parseTableRef(hsql::TableRef* tableRef){
+
+}
+
+string parseSelect(string response){
+    string finalQuery = "SELECT ";
+    stringstream ss(response);
+    string temp;
+
+    ss >> temp; // get rid of select
+    ss >> temp; // read in column list (assume there are no spaces in between)
+
+    for(char c : temp){
+        if(c != ',')
+            finalQuery += c;
+        else
+            finalQuery += ", ";
+    }
+
+    ss >> temp; // read "from"
+    finalQuery += " FROM ";
+    ss >> temp; // read table name
+    finalQuery += temp;
+    ss >> temp; // check if there is "as"
+
+    if(temp == "as")
+
+    cout << finalQuery;
+
+    
+
+    return "";
 }
 
 std::string parseCreate(std::string response) {
