@@ -14,8 +14,10 @@ const char *MILESTONE1 = "milestone1.db";
 std::string execute(hsql::SQLParserResult* query, std::string response);
 std::string parseCreate(std::string response);
 string parseTableRef(hsql::TableRef* tableRef);
-string parseSelect(string response);
 string parseSelect(hsql::SelectStatement* selectStatement);
+string parseExpressionWithOperator(hsql::Expr* expr);
+string parseExpressionWithoutOperator(hsql::Expr* expr);
+string parseExpression(hsql::Expr* expr);
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
@@ -30,8 +32,6 @@ int main(int argc, char *argv[]) {
     // Path must be from root of directory (eg cpsc4300/data)
     const char *home = std::getenv("HOME");
 	std::string envdir = std::string(home) + "/" + directory;
-
-    // cout << std::string(home);
 
     DbEnv env(0U);
     env.set_message_stream(&std::cout);
@@ -71,7 +71,6 @@ std::string execute(hsql::SQLParserResult* query, std::string response) {
     std::string finalQuery = "";
     int n = query->size();
     //hsql::StatementType statementType = query->getStatement(0)->type();
-    //std::cout << "Statement type is: " << statementType << std::endl;
 
     // TODO: turn query variable into formal sql query
     for (int i = 0; i < n; i++) {
@@ -85,6 +84,7 @@ std::string execute(hsql::SQLParserResult* query, std::string response) {
                 {
 
                     finalQuery += parseCreate(response);
+                    break;
 
                     // finalQuery += "CREATE TABLE ";
                 
@@ -105,7 +105,6 @@ std::string execute(hsql::SQLParserResult* query, std::string response) {
                     // delete createStatement;
                     // delete nameArray;
                 }
-                break;
             case hsql::kStmtInsert: // insert statement
             {
                 finalQuery += "INSERT";
@@ -121,8 +120,14 @@ std::string execute(hsql::SQLParserResult* query, std::string response) {
 }
 
 string parseTableRef(hsql::TableRef* tableRef){
-    hsql::TableRefType tableRefType = tableRef->type; // type of table expression (join, table name, etc)
     string finalString = "";
+
+    if(tableRef->list != nullptr){ // if there is >1 table in the list, parse all of them
+        for(auto it = tableRef->list->begin(); it != tableRef->list->end(); it++)
+        finalString += parseTableRef(*it) + ", ";
+    }
+
+    hsql::TableRefType tableRefType = tableRef->type; // type of table expression (join, table name, etc)
     switch(tableRefType){
         case hsql::kTableName:{ // if the table ref is a table name
             finalString += tableRef->name; // add table name
@@ -133,14 +138,10 @@ string parseTableRef(hsql::TableRef* tableRef){
         case hsql::kTableJoin:{ // if the table ref is a join expression
             hsql::JoinDefinition* joinDefinition = tableRef->join;
             hsql::JoinType joinType = joinDefinition->type; // type of join (inner, outer, etc)
-            hsql::TableRef* leftTable = joinDefinition->left; // left table in join
-            hsql::TableRef* rightTable = joinDefinition->right; // right table in join
             hsql::Expr* joinCondition = joinDefinition->condition;
-            hsql::ExprType joinConditionType = joinCondition->type;
-            // cout << endl << "Join condition expression type:" << joinCondition->type << endl;
             string joinTypeString = ""; // type of join (inner, outer, etc)
-            string leftTableString = parseTableRef(leftTable); // string representing the left table in a join
-            string rightTableString = parseTableRef(rightTable); // string for the right table
+            string leftTableString = parseTableRef(joinDefinition->left); // parse the left table in the join; get the string
+            string rightTableString = parseTableRef(joinDefinition->right); // same for the right table in the join
                 
             switch(joinType){
                 case hsql::kJoinLeft:{
@@ -157,22 +158,97 @@ string parseTableRef(hsql::TableRef* tableRef){
                     break;
                 }
             }
-            finalString = leftTableString + " " + joinTypeString + " " + rightTableString + " ON ";
+            finalString = leftTableString + " " + joinTypeString + " " + rightTableString + " ON " + parseExpression(joinCondition);
+        }
+    }
 
-            // parse the join condition
-            // if(joinConditionType == hsql::kExprOperator){
-            //     cout << "op type: " << joinCondition->opType << endl;
+    return finalString;
+}
 
-            //     if(joinCondition->opType == hsql::OperatorType.SIMPLE_OP){
+// parse an expression, both with and without an operator
+string parseExpression(hsql::Expr* expr){
+    
+    if(expr->exprList != nullptr){
+        cout << endl << "EXPR LIST: ";
+        for(auto it = expr->exprList->begin(); it != expr->exprList->end(); it++){
+            cout << *it << "    ";
+        }
+        cout << endl;
+    }
+    if(expr->type == 7)
+        return parseExpressionWithOperator(expr);
 
-            //     }
-            //     cout << "op char: " << joinCondition->opChar << endl; // only if the op character is 1 character
-            // }
+    return parseExpressionWithoutOperator(expr);
+}
+
+// parses expressions that do not contain an operator, i.e. literals and column refs
+string parseExpressionWithoutOperator(hsql::Expr* expr){
+    string finalString = "";
+
+    switch(expr->type){
+        // if it's a literal float, int, or string, just add that value to the final string
+        case hsql::kExprLiteralFloat:
+            cout << expr->fval;
+            finalString += expr->fval; // TODO: bug
+            break;
+        case hsql::kExprLiteralInt:{
+            cout << expr->ival;
+            finalString += expr->ival; // TODO: bug
+            break;
+        }case hsql::kExprLiteralString:{
+            finalString += expr->getName();
+            break;
+        }case hsql::kExprColumnRef:{ // a column name, might have a table name
+            char* varName = expr->name;
+            char* table = expr->table;
+
+            if(table != nullptr) // if there's a table name, add tableName.colName to finalString
+                finalString += (string)table + ".";
+            finalString += varName;
+            break;
         }
 
     }
 
     return finalString;
+}
+
+// parses expressions that contain operators, like WHERE or JOIN conditions, like a.x = b.x
+// precondition: only call this for expressions that contain >=1 operator
+string parseExpressionWithOperator(hsql::Expr* condition){
+    string finalString = parseExpression(condition->expr); // parse the left hand side of the expression
+
+    // add the operator character (=, >, etc.) to the final string, in between the LHS and RHS
+    if(condition->opType != 0){ // if there is an operator, parse it
+                switch(condition->opType){
+                    case 3:{
+                        switch(condition->opChar){
+                            case '=':{
+                                finalString += " = "; 
+                                break;
+                            }case '<':{
+                                finalString += " < "; 
+                                break;
+                            }case '>':{
+                                finalString += " > "; 
+                                break;
+                            }
+                        }
+                        break;
+                    }case 4:{
+                        finalString += " <> ";
+                        break;
+                    }case 5:{
+                        finalString += " <= ";
+                        break;
+                    }case 6:{
+                        finalString += " >= ";
+                        break;
+                    }
+                }
+    }
+
+    return (finalString + parseExpression(condition->expr2)); // parse the RHS and add it
 }
 
 string parseSelect(hsql::SelectStatement* selectStatement){
@@ -187,8 +263,7 @@ string parseSelect(hsql::SelectStatement* selectStatement){
         switch(exprType){
             case hsql::kExprStar: // if we're selecting *, add * to the string
                 finalString += "*";
-                break;
-            
+                break;           
 
             // Bug? For some reason, if the expression type is star, the code will also enter this case,
             // but the expression name is null
@@ -198,16 +273,15 @@ string parseSelect(hsql::SelectStatement* selectStatement){
                
                 if(expr->name != nullptr) finalString += (string)expr->name + ", ";
 
-                if(expr->hasAlias()){
-                    // cout << "has alias";
-                    finalString += (string)expr->alias + ", ";
-                }
+                if(expr->hasAlias()) finalString += (string)expr->alias + ", ";
                 break;
             }
         }
     }
 
     finalString += (" FROM "+ parseTableRef(table));
+    if(whereClause != nullptr)
+        finalString += " WHERE " + parseExpression(whereClause);
     return finalString;
 }
 
