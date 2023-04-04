@@ -13,14 +13,15 @@ const char *MILESTONE1 = "milestone1.db";
 
 std::string execute(hsql::SQLParserResult* query, std::string response);
 std::string parseCreate(std::string response);
+string parseTableRef(hsql::TableRef* tableRef);
 string parseSelect(string response);
+string parseSelect(hsql::SelectStatement* selectStatement);
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
         std::cout << "Usage: ./milestone1 path" << std::endl;
         return -1;
     }
-    cout << "Hi";
     std::string directory = argv[1];
 
     // maybe check if directory is valid?
@@ -30,7 +31,7 @@ int main(int argc, char *argv[]) {
     const char *home = std::getenv("HOME");
 	std::string envdir = std::string(home) + "/" + directory;
 
-    cout << std::string(home);
+    // cout << std::string(home);
 
     DbEnv env(0U);
     env.set_message_stream(&std::cout);
@@ -78,7 +79,6 @@ std::string execute(hsql::SQLParserResult* query, std::string response) {
         //hsql::printStatementInfo(statement);
 
         hsql::StatementType statementType = statement->type();
-        std::cout << "Statement type is: " << statementType << std::endl;
 
         switch(statementType){
             case hsql::kStmtCreate: // create statement
@@ -111,43 +111,8 @@ std::string execute(hsql::SQLParserResult* query, std::string response) {
                 finalQuery += "INSERT";
                 break;
             }case hsql::kStmtSelect:{
-
                 hsql::SelectStatement* selectStatement = (hsql::SelectStatement*)statement;
-                hsql::TableRef* table = selectStatement->fromTable;
-                hsql::Expr* whereClause = selectStatement->whereClause;
-
-                hsql::TableRefType tableRefType = table->type; // type of table expression (join, table name, etc)
-                switch(tableRefType){
-                    case hsql::kTableName:{
-                        char* tableName = table->name;
-                        string s(tableName);
-                        cout << s;
-                        break;
-                    }
-                    case hsql::kTableJoin:{ // if the table ref is a join expression
-                        hsql::JoinDefinition* joinDefinition = table->join;
-                        hsql::JoinType joinType = joinDefinition->type;
-                        hsql::TableRef* leftTable = joinDefinition->left;
-                        hsql::TableRef* rightTable = joinDefinition->right;
-                        hsql::Expr* joinCondition = joinDefinition->condition;
-                        
-                        switch(joinType){
-                            case hsql::kJoinLeft:{
-                                cout << "LEFT JOIN";
-                                break;
-                            }case hsql::kJoinRight:{
-                                cout << "RIGHT JOIN";
-                                break;
-                            }case hsql::kJoinInner:{
-                                cout << "INNER JOIN";
-                                break;
-                            }case hsql::kJoinOuter:{
-                                cout << "OUTER JOIN";
-                                break;
-                            }
-                        }
-                    }
-                }
+                cout << parseSelect(selectStatement);               
                 break;
             }
         }
@@ -156,37 +121,94 @@ std::string execute(hsql::SQLParserResult* query, std::string response) {
 }
 
 string parseTableRef(hsql::TableRef* tableRef){
+    hsql::TableRefType tableRefType = tableRef->type; // type of table expression (join, table name, etc)
+    string finalString = "";
+    switch(tableRefType){
+        case hsql::kTableName:{ // if the table ref is a table name
+            finalString += tableRef->name; // add table name
+            if(tableRef->alias != nullptr) // check if there's an alias (tableName AS alias)
+                finalString += " AS " + (string)tableRef->alias; // add "AS alias"
+            break;
+        }
+        case hsql::kTableJoin:{ // if the table ref is a join expression
+            hsql::JoinDefinition* joinDefinition = tableRef->join;
+            hsql::JoinType joinType = joinDefinition->type; // type of join (inner, outer, etc)
+            hsql::TableRef* leftTable = joinDefinition->left; // left table in join
+            hsql::TableRef* rightTable = joinDefinition->right; // right table in join
+            hsql::Expr* joinCondition = joinDefinition->condition;
+            hsql::ExprType joinConditionType = joinCondition->type;
+            // cout << endl << "Join condition expression type:" << joinCondition->type << endl;
+            string joinTypeString = ""; // type of join (inner, outer, etc)
+            string leftTableString = parseTableRef(leftTable); // string representing the left table in a join
+            string rightTableString = parseTableRef(rightTable); // string for the right table
+                
+            switch(joinType){
+                case hsql::kJoinLeft:{
+                    joinTypeString = "LEFT JOIN";
+                    break;
+                }case hsql::kJoinRight:{
+                    joinTypeString = "RIGHT JOIN";
+                    break;
+                }case hsql::kJoinInner:{
+                    joinTypeString = "JOIN";
+                    break;
+                }case hsql::kJoinOuter:{
+                    joinTypeString = "OUTER JOIN";
+                    break;
+                }
+            }
+            finalString = leftTableString + " " + joinTypeString + " " + rightTableString + " ON ";
 
-}
+            // parse the join condition
+            // if(joinConditionType == hsql::kExprOperator){
+            //     cout << "op type: " << joinCondition->opType << endl;
 
-string parseSelect(string response){
-    string finalQuery = "SELECT ";
-    stringstream ss(response);
-    string temp;
+            //     if(joinCondition->opType == hsql::OperatorType.SIMPLE_OP){
 
-    ss >> temp; // get rid of select
-    ss >> temp; // read in column list (assume there are no spaces in between)
+            //     }
+            //     cout << "op char: " << joinCondition->opChar << endl; // only if the op character is 1 character
+            // }
+        }
 
-    for(char c : temp){
-        if(c != ',')
-            finalQuery += c;
-        else
-            finalQuery += ", ";
     }
 
-    ss >> temp; // read "from"
-    finalQuery += " FROM ";
-    ss >> temp; // read table name
-    finalQuery += temp;
-    ss >> temp; // check if there is "as"
+    return finalString;
+}
 
-    if(temp == "as")
+string parseSelect(hsql::SelectStatement* selectStatement){
+    string finalString = "SELECT ";
+    hsql::TableRef* table = selectStatement->fromTable;
+    hsql::Expr* whereClause = selectStatement->whereClause;
+    vector<hsql::Expr*>* columnsToSelect = selectStatement->selectList;
 
-    cout << finalQuery;
+    for (hsql::Expr* expr : *selectStatement->selectList){
+        hsql::ExprType exprType = expr->type; // type of expression
 
-    
+        switch(exprType){
+            case hsql::kExprStar: // if we're selecting *, add * to the string
+                finalString += "*";
+                break;
+            
 
-    return "";
+            // Bug? For some reason, if the expression type is star, the code will also enter this case,
+            // but the expression name is null
+            case hsql::kExprColumnRef:{ // if we are selecting columns, add the column names to the string
+                if(expr->hasTable()) // if there's a table name before the column name (tableName.colName)
+                    finalString += (string)expr->table + ".";
+               
+                if(expr->name != nullptr) finalString += (string)expr->name + ", ";
+
+                if(expr->hasAlias()){
+                    // cout << "has alias";
+                    finalString += (string)expr->alias + ", ";
+                }
+                break;
+            }
+        }
+    }
+
+    finalString += (" FROM "+ parseTableRef(table));
+    return finalString;
 }
 
 std::string parseCreate(std::string response) {
