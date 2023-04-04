@@ -188,12 +188,10 @@ string parseExpressionWithoutOperator(hsql::Expr* expr){
     switch(expr->type){
         // if it's a literal float, int, or string, just add that value to the final string
         case hsql::kExprLiteralFloat:
-            cout << expr->fval;
-            finalString += expr->fval; // TODO: bug
+            finalString += to_string(expr->fval); // TODO: fix floating point conversion
             break;
         case hsql::kExprLiteralInt:{
-            cout << expr->ival;
-            finalString += expr->ival; // TODO: bug
+            finalString += to_string(expr->ival); 
             break;
         }case hsql::kExprLiteralString:{
             finalString += expr->getName();
