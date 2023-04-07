@@ -70,46 +70,18 @@ int main(int argc, char *argv[]) {
 std::string execute(hsql::SQLParserResult* query, std::string response) {
     std::string finalQuery = "";
     int n = query->size();
-    //hsql::StatementType statementType = query->getStatement(0)->type();
 
-    // TODO: turn query variable into formal sql query
     for (int i = 0; i < n; i++) {
         const hsql::SQLStatement* statement = query->getStatement(i);
-        //hsql::printStatementInfo(statement);
-
         hsql::StatementType statementType = statement->type();
 
         switch(statementType){
             case hsql::kStmtCreate: // create statement
-                {
-
+            {
                     finalQuery += parseCreate(response);
                     break;
-
-                    // finalQuery += "CREATE TABLE ";
-                
-                    //hsql::CreateStatement::CreateType type = hsql::CreateStatement::CreateType.kTable;
-                    // hsql::CreateStatement *createStatement = new hsql::CreateStatement(hsql::CreateStatement::kTable); // assume create statements are always creating a table
-                    
-                    // std::string name = "students";
-                    
-                    // char* nameArray = new char[name.length() + 1];
-                    // strcpy(nameArray, name.c_str());
-
-                    // createStatement->tableName = nameArray;
-                    // hsql::printCreateStatementInfo(createStatement, 0);
-                    // //std::cout << "Table name: " << createStatement->tableName << std::endl;
-                    // //std::cout << "File path: " << createStatement->filePath << std::endl;
-                    // //std::cout << "columns: " << createStatement->columns << std::endl;
-
-                    // delete createStatement;
-                    // delete nameArray;
-                }
-            case hsql::kStmtInsert: // insert statement
-            {
-                finalQuery += "INSERT";
-                break;
-            }case hsql::kStmtSelect:{
+            }
+            case hsql::kStmtSelect:{ // select statement
                 hsql::SelectStatement* selectStatement = (hsql::SelectStatement*)statement;
                 cout << parseSelect(selectStatement);               
                 break;
@@ -122,9 +94,12 @@ std::string execute(hsql::SQLParserResult* query, std::string response) {
 string parseTableRef(hsql::TableRef* tableRef){
     string finalString = "";
 
-    if(tableRef->list != nullptr){ // if there is >1 table in the list, parse all of them
-        for(auto it = tableRef->list->begin(); it != tableRef->list->end(); it++)
-        finalString += parseTableRef(*it) + ", ";
+    if(tableRef->list != nullptr){ // if there is >1 table in the list, parse all of them        
+        for(int i=0; i < tableRef->list->size(); i++){
+            finalString += parseTableRef((*tableRef->list)[i]);
+            if(i < tableRef->list->size() - 1) 
+                finalString += ", ";
+        }
     }
 
     hsql::TableRefType tableRefType = tableRef->type; // type of table expression (join, table name, etc)
@@ -165,28 +140,11 @@ string parseTableRef(hsql::TableRef* tableRef){
     return finalString;
 }
 
-// parse an expression, both with and without an operator
 string parseExpression(hsql::Expr* expr){
-    
-    if(expr->exprList != nullptr){
-        cout << endl << "EXPR LIST: ";
-        for(auto it = expr->exprList->begin(); it != expr->exprList->end(); it++){
-            cout << *it << "    ";
-        }
-        cout << endl;
-    }
-    if(expr->type == 7)
-        return parseExpressionWithOperator(expr);
-
-    return parseExpressionWithoutOperator(expr);
-}
-
-// parses expressions that do not contain an operator, i.e. literals and column refs
-string parseExpressionWithoutOperator(hsql::Expr* expr){
     string finalString = "";
 
     switch(expr->type){
-        // if it's a literal float, int, or string, just add that value to the final string
+        // Base cases: if the expression doesn't have an operator, just parse the literal or column
         case hsql::kExprLiteralFloat:
             finalString += to_string(expr->fval); // TODO: fix floating point conversion
             break;
@@ -204,50 +162,61 @@ string parseExpressionWithoutOperator(hsql::Expr* expr){
                 finalString += (string)table + ".";
             finalString += varName;
             break;
-        }
+        }case hsql::kExprOperator:{
+            finalString += parseExpression(expr->expr); // parse the expression on the left side of the operator, which might have an operator, add that            
 
+            // add the operator character (=, >, etc.) to the final string, in between the LHS and RHS
+            if(expr->opType != 0){ // if there is an operator, parse it
+                        switch(expr->opType){
+                            case 3:{ 
+                                switch(expr->opChar){
+                                    case '=':{
+                                        finalString += " = "; 
+                                        break;
+                                    }case '<':{
+                                        finalString += " < "; 
+                                        break;
+                                    }case '>':{
+                                        finalString += " > "; 
+                                        break;
+                                    }case '+':{
+                                        finalString += " + "; 
+                                        break;
+                                    }case '-':{
+                                        finalString += " - "; 
+                                        break;
+                                    }case '*':{
+                                        finalString += " * "; 
+                                        break;
+                                    }case '/':{
+                                        finalString += " / "; 
+                                        break;
+                                    }case '%':{
+                                        finalString += " % "; 
+                                        break;
+                                    }
+                                }
+                                break;
+                            }case 4:{
+                                finalString += " <> ";
+                                break;
+                            }case 5:{
+                                finalString += " <= ";
+                                break;
+                            }case 6:{
+                                finalString += " >= ";
+                                break;
+                            }
+                        }
+            }
+
+            finalString += parseExpression(expr->expr2);
+        }
     }
 
     return finalString;
 }
 
-// parses expressions that contain operators, like WHERE or JOIN conditions, like a.x = b.x
-// precondition: only call this for expressions that contain >=1 operator
-string parseExpressionWithOperator(hsql::Expr* condition){
-    string finalString = parseExpression(condition->expr); // parse the left hand side of the expression
-
-    // add the operator character (=, >, etc.) to the final string, in between the LHS and RHS
-    if(condition->opType != 0){ // if there is an operator, parse it
-                switch(condition->opType){
-                    case 3:{
-                        switch(condition->opChar){
-                            case '=':{
-                                finalString += " = "; 
-                                break;
-                            }case '<':{
-                                finalString += " < "; 
-                                break;
-                            }case '>':{
-                                finalString += " > "; 
-                                break;
-                            }
-                        }
-                        break;
-                    }case 4:{
-                        finalString += " <> ";
-                        break;
-                    }case 5:{
-                        finalString += " <= ";
-                        break;
-                    }case 6:{
-                        finalString += " >= ";
-                        break;
-                    }
-                }
-    }
-
-    return (finalString + parseExpression(condition->expr2)); // parse the RHS and add it
-}
 
 string parseSelect(hsql::SelectStatement* selectStatement){
     string finalString = "SELECT ";
@@ -255,23 +224,27 @@ string parseSelect(hsql::SelectStatement* selectStatement){
     hsql::Expr* whereClause = selectStatement->whereClause;
     vector<hsql::Expr*>* columnsToSelect = selectStatement->selectList;
 
-    for (hsql::Expr* expr : *selectStatement->selectList){
+    for(int i = 0; i < columnsToSelect->size(); i++){
+        hsql::Expr* expr = (*columnsToSelect)[i];
         hsql::ExprType exprType = expr->type; // type of expression
 
         switch(exprType){
             case hsql::kExprStar: // if we're selecting *, add * to the string
                 finalString += "*";
                 break;           
-
-            // Bug? For some reason, if the expression type is star, the code will also enter this case,
-            // but the expression name is null
             case hsql::kExprColumnRef:{ // if we are selecting columns, add the column names to the string
                 if(expr->hasTable()) // if there's a table name before the column name (tableName.colName)
                     finalString += (string)expr->table + ".";
                
-                if(expr->name != nullptr) finalString += (string)expr->name + ", ";
+                if(expr->name != nullptr)
+                    finalString += (string)expr->name;
 
-                if(expr->hasAlias()) finalString += (string)expr->alias + ", ";
+                if(expr->hasAlias())
+                    finalString += " AS " + (string)expr->alias;
+
+                if(i < columnsToSelect->size() - 1) 
+                    finalString += ", ";
+
                 break;
             }
         }
