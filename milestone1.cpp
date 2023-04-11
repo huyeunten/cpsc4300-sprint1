@@ -1,5 +1,6 @@
 #include "../sql-parser/src/SQLParser.h"
 #include "../sql-parser/src/sqlhelper.h"
+#include "heap_storage.h"
 #include "db_cxx.h"
 #include <iostream>
 #include <cstring>
