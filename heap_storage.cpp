@@ -208,109 +208,207 @@ void *SlottedPage::address(u_int16_t offset) {
     return (void *) ((char *) this->block.get_data() + offset);
 }
 
-void HeapFile::create(void) {
+// fields: name, dbfilename, last, closed, Db db
 
+// get: get a block from the database file (via the buffer manager, 
+// presumably) for a given block id. The client code can then read 
+// or modify the block via the DbBlock interface.
+
+// get_new: create a new empty block and add it to the database 
+// file. Returns the new block to be modified by the client via 
+// the DbBlock interface.
+
+// put: write a block to the file. Presumably the client has 
+// made modifications in the block that he would like to save. 
+// Typically, it's up to the buffer manager exactly when the 
+// block is actually written out to disk.
+
+// block_ids: iterate through all the block ids in the file.
+
+
+void HeapFile::create(void) {
+    std::cout << std::endl << std::endl << "In create" << std::endl;
+
+    // open and use DB_CREATE to create the database. DB_EXCL throws an error if the database already exists
+    db.open(NULL, (const char*)(&dbfilename), NULL, DB_RECNO, DB_CREATE | DB_EXCL| DB_TRUNCATE, 0644);
+
+    std::cout << std::endl << "Created" << std::endl;
 }
 
 void HeapFile::drop(void) {
+    std::cout << std::endl << std::endl << "In drop" << std::endl;
 
+    if(!closed){
+        std::cout << std::endl << "The file to be dropped is open" << std::endl;
+        close();
+    }
+    
+    db.remove((const char*)(&dbfilename), NULL, 0); // remove the file
+    std::cout << std::endl << "Dropped" << std::endl;
 }
 
 void HeapFile::open(void) {
+    std::cout << std::endl << std::endl << "In open" << std::endl;
 
+    if(closed){
+        std::cout << std::endl << "The file to be opened is closed" << std::endl;
+        db.open(NULL, (const char *)(&dbfilename), NULL, DB_RECNO, 0, 0644);
+        closed = false;
+    }
+
+    std::cout << std::endl << "opened" << std::endl;
 }
 
 void HeapFile::close(void) {
+    std::cout << std::endl << std::endl << "In close" << std::endl;
 
+    if(!closed){
+        std::cout << std::endl << std::endl << "File to be closed is open" << std::endl;
+        db.close(0);
+        closed = true;
+    }
+    std::cout << std::endl << std::endl << "Closed" << std::endl;
 }
+
+// get_new: create a new empty block and add it to the database 
+// file. Returns the new block to be modified by the client via 
+// the DbBlock interface.
 
 SlottedPage *HeapFile::get_new(void) {
-
+    SlottedPage* newBlock = new SlottedPage(true);
 }
 
-SlottedPage *HeapFile::get(BlockID block_id) {
+// SlottedPage *HeapFile::get(BlockID block_id) {
 
+// }
+
+// void HeapFile::put(DbBlock *block) {
+
+// }
+
+// BlockIDs *HeapFile::block_ids() {
+
+// }
+
+// void HeapFile::db_open(uint flags) {
+
+// }
+
+// HeapTable::HeapTable(Identifier table_name, ColumnNames column_names, ColumnAttributes column_attributes) : 
+//             DbRelation(table_name, column_names, column_attributes), file(table_name) {
+
+// }
+
+// void HeapTable::create() {
+
+// }
+
+// void HeapTable::create_if_not_exists() {
+
+// }
+
+// void HeapTable::drop() {
+
+// }
+
+// void HeapTable::open() {
+
+// }
+
+// void HeapTable::close() {
+
+// }
+
+// Handle HeapTable::insert(const ValueDict *row) {
+
+// }
+
+// void HeapTable::update(const Handle handle, const ValueDict *new_values) {
+
+// }
+
+// void HeapTable::del(const Handle handle) {
+
+// }
+
+// Handles *HeapTable::select() {
+
+// }
+
+// Handles *HeapTable::select(const ValueDict *where) {
+
+// }
+
+// ValueDict *HeapTable::project(Handle handle) {
+
+// }
+
+// ValueDict *HeapTable::project(Handle handle, const ColumnNames *column_names) {
+
+// }
+
+// ValueDict *HeapTable::validate(const ValueDict *row) {
+
+// }
+
+// Handle HeapTable::append(const ValueDict *row) {
+
+// }
+
+// Dbt *HeapTable::marshal(const ValueDict *row) {
+
+// }
+
+// ValueDict *HeapTable::unmarshal(Dbt *data) {
+
+// }
+
+// bool test_heap_storage(){};
+    // test function -- returns true if all tests pass
+
+void test_heap_storage2(){
+    HeapFile* file = new HeapFile("file.db");
+    file->open();
+    file->close();
+    file->drop();
 }
 
-void HeapFile::put(DbBlock *block) {
+bool test_heap_storage() {
+	ColumnNames column_names;
+	column_names.push_back("a");
+	column_names.push_back("b");
+	ColumnAttributes column_attributes;
+	ColumnAttribute ca(ColumnAttribute::INT);
+	column_attributes.push_back(ca);
+	ca.set_data_type(ColumnAttribute::TEXT);
+	column_attributes.push_back(ca);
+    HeapTable table1("_test_create_drop_cpp", column_names, column_attributes);
+    table1.create();
+    std::cout << "create ok" << std::endl;
+    table1.drop();  // drop makes the object unusable because of BerkeleyDB restriction -- maybe want to fix this some day
+    std::cout << "drop ok" << std::endl;
 
+    HeapTable table("_test_data_cpp", column_names, column_attributes);
+    table.create_if_not_exists();
+    std::cout << "create_if_not_exsts ok" << std::endl;
+
+    ValueDict row;
+    row["a"] = Value(12);
+    row["b"] = Value("Hello!");
+    std::cout << "try insert" << std::endl;
+    table.insert(&row);
+    std::cout << "insert ok" << std::endl;
+    Handles* handles = table.select();
+    std::cout << "select ok " << handles->size() << std::endl;
+    ValueDict *result = table.project((*handles)[0]);
+    std::cout << "project ok" << std::endl;
+    Value value = (*result)["a"];
+    if (value.n != 12)
+    	return false;
+    value = (*result)["b"];
+    if (value.s != "Hello!")
+		return false;
+    table.drop();
+
+    return true;
 }
-
-BlockIDs *HeapFile::block_ids() {
-
-}
-
-void HeapFile::db_open(uint flags) {
-
-}
-
-HeapTable::HeapTable(Identifier table_name, ColumnNames column_names, ColumnAttributes column_attributes) : 
-            DbRelation(table_name, column_names, column_attributes), file(table_name) {
-
-}
-
-void HeapTable::create() {
-
-}
-
-void HeapTable::create_if_not_exists() {
-
-}
-
-void HeapTable::drop() {
-
-}
-
-void HeapTable::open() {
-
-}
-
-void HeapTable::close() {
-
-}
-
-Handle HeapTable::insert(const ValueDict *row) {
-
-}
-
-void HeapTable::update(const Handle handle, const ValueDict *new_values) {
-
-}
-
-void HeapTable::del(const Handle handle) {
-
-}
-
-Handles *HeapTable::select() {
-
-}
-
-Handles *HeapTable::select(const ValueDict *where) {
-
-}
-
-ValueDict *HeapTable::project(Handle handle) {
-
-}
-
-ValueDict *HeapTable::project(Handle handle, const ColumnNames *column_names) {
-
-}
-
-ValueDict *HeapTable::validate(const ValueDict *row) {
-
-}
-
-Handle HeapTable::append(const ValueDict *row) {
-
-}
-
-Dbt *HeapTable::marshal(const ValueDict *row) {
-
-}
-
-ValueDict *HeapTable::unmarshal(Dbt *data) {
-
-}
-
-bool test_heap_storage();

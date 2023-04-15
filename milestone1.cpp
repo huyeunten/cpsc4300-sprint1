@@ -1,6 +1,7 @@
 #include "../sql-parser/src/SQLParser.h"
 #include "../sql-parser/src/sqlhelper.h"
 #include "heap_storage.h"
+#include "storage_engine.h"
 #include "db_cxx.h"
 #include <iostream>
 #include <cstring>
@@ -10,6 +11,7 @@ using namespace std;
 
 const std::string QUIT = "quit";
 const unsigned int BLOCK_SZ = 4096;
+const string TEST = "test";
 const char *MILESTONE1 = "milestone1.db";
 
 std::string execute(hsql::SQLParserResult* query, std::string response);
@@ -19,6 +21,7 @@ string parseSelect(hsql::SelectStatement* selectStatement);
 string parseExpressionWithOperator(hsql::Expr* expr);
 string parseExpressionWithoutOperator(hsql::Expr* expr);
 string parseExpression(hsql::Expr* expr);
+void test_heap_storage2();
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
@@ -46,6 +49,10 @@ int main(int argc, char *argv[]) {
 	db.open(NULL, MILESTONE1, NULL, DB_RECNO, DB_CREATE | DB_TRUNCATE, 0644);
 
     std::string response;
+    if(response == TEST){
+        test_heap_storage2();
+    }
+
     while (response != QUIT) {
         std::cout << "SQL> ";
         getline(std::cin, response);
@@ -66,6 +73,13 @@ int main(int argc, char *argv[]) {
         delete [] responseArray;
         delete result;
     }
+}
+
+void test_heap_storage2(){
+    HeapFile* file = new HeapFile("file.db");
+    file->open();
+    file->close();
+    file->drop();
 }
 
 std::string execute(hsql::SQLParserResult* query, std::string response) {
