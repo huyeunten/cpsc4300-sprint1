@@ -2,6 +2,7 @@
 #include "../sql-parser/src/sqlhelper.h"
 #include "heap_storage.h"
 #include "storage_engine.h"
+#include "heap_storage.cpp"
 #include "db_cxx.h"
 #include <iostream>
 #include <cstring>

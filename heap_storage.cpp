@@ -273,21 +273,42 @@ void HeapFile::close(void) {
 // get_new: create a new empty block and add it to the database 
 // file. Returns the new block to be modified by the client via 
 // the DbBlock interface.
-
+// This method was copied from Prof. Guardia
 SlottedPage *HeapFile::get_new(void) {
-    SlottedPage* newBlock = new SlottedPage(true);
+    // Dbt emptyDbt = Dbt(); // empty Dbt for the key in the key/data pair
+    // Dbt emptyDbtRef = &emptyDbt;
+    // SlottedPage* newBlock = new SlottedPage(&emptyDbt, 0, true); // empty SlottedPage block
+    // Dbt* newData = new Dbt(newBlock, sizeof(newBlock)); // Dbt to hold the new block
+    // db.put(NULL, emptyDbt, newData, 0);
+    // return newBlock;
+
+    char block[DbBlock::BLOCK_SZ];
+    std::memset(block, 0, sizeof(block));
+    Dbt data(block, sizeof(block));
+
+    int block_id = ++this->last;
+    Dbt key(&block_id, sizeof(block_id));
+
+    // write out an empty block and read it back in so Berkeley DB is managing the memory
+    SlottedPage* page = new SlottedPage(data, this->last, true);
+    this->db.put(nullptr, &key, &data, 0); // write it out with initialization applied
+    this->db.get(nullptr, &key, &data, 0);
+    return page;
 }
 
-// SlottedPage *HeapFile::get(BlockID block_id) {
-
-// }
+SlottedPage *HeapFile::get(BlockID block_id) {
+    Dbt* key = new Dbt(&block_id, sizeof(block_id)); // the key is the block ID, wrap it in a Dbt
+    Dbt* data = new Dbt(); // the Dbt to hold the data, BerkeleyDB will fill it with data
+    db.get(0, key, data, 0);
+    return new SlottedPage(data, block_id, false); // use the data and block id to fill a SlottedPage
+}
 
 // void HeapFile::put(DbBlock *block) {
 
 // }
 
 // BlockIDs *HeapFile::block_ids() {
-
+//     return new BlockIDs();
 // }
 
 // void HeapFile::db_open(uint flags) {
@@ -320,7 +341,7 @@ SlottedPage *HeapFile::get_new(void) {
 // }
 
 // Handle HeapTable::insert(const ValueDict *row) {
-
+//     return new Handle();
 // }
 
 // void HeapTable::update(const Handle handle, const ValueDict *new_values) {
@@ -332,46 +353,40 @@ SlottedPage *HeapFile::get_new(void) {
 // }
 
 // Handles *HeapTable::select() {
-
+//     return new Handle();
 // }
 
 // Handles *HeapTable::select(const ValueDict *where) {
-
+//     return new Handle();
 // }
 
 // ValueDict *HeapTable::project(Handle handle) {
-
+//     return new ValueDict();
 // }
 
 // ValueDict *HeapTable::project(Handle handle, const ColumnNames *column_names) {
-
+//     return new ValueDict();
 // }
 
 // ValueDict *HeapTable::validate(const ValueDict *row) {
-
+//     return new ValueDict();
 // }
 
 // Handle HeapTable::append(const ValueDict *row) {
-
+//     return new Handle();
 // }
 
 // Dbt *HeapTable::marshal(const ValueDict *row) {
-
+//     return new Dbt();
 // }
 
 // ValueDict *HeapTable::unmarshal(Dbt *data) {
-
+//     return new ValueDict();
 // }
 
 // bool test_heap_storage(){};
     // test function -- returns true if all tests pass
 
-void test_heap_storage2(){
-    HeapFile* file = new HeapFile("file.db");
-    file->open();
-    file->close();
-    file->drop();
-}
 
 bool test_heap_storage() {
 	ColumnNames column_names;
