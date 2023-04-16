@@ -303,9 +303,14 @@ SlottedPage *HeapFile::get(BlockID block_id) {
     return new SlottedPage(data, block_id, false); // use the data and block id to fill a SlottedPage
 }
 
-// void HeapFile::put(DbBlock *block) {
-
-// }
+// put: write a block to the file. Presumably the client has 
+// made modifications in the block that he would like to save. 
+// Typically, it's up to the buffer manager exactly when the 
+// block is actually written out to disk.
+void HeapFile::put(DbBlock *block) {
+    Dbt* key = new Dbt(block->get_block_id(), sizeof(block));
+    Dbt* data = 
+}
 
 // BlockIDs *HeapFile::block_ids() {
 //     return new BlockIDs();
