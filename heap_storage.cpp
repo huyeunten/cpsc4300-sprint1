@@ -297,9 +297,10 @@ SlottedPage *HeapFile::get_new(void) {
 }
 
 SlottedPage *HeapFile::get(BlockID block_id) {
+    BlockID& blockIdByReference = block_id; // reference version of block_id to pass to SlottedPage constructor
     Dbt* key = new Dbt(&block_id, sizeof(block_id)); // the key is the block ID, wrap it in a Dbt
-    Dbt* data = new Dbt(); // the Dbt to hold the data, BerkeleyDB will fill it with data
-    db.get(0, key, data, 0);
+    Dbt data = Dbt(); // the Dbt to hold the data, BerkeleyDB will fill it with data
+    db.get(0, key, &data, 0);
     return new SlottedPage(data, block_id, false); // use the data and block id to fill a SlottedPage
 }
 
@@ -308,17 +309,58 @@ SlottedPage *HeapFile::get(BlockID block_id) {
 // Typically, it's up to the buffer manager exactly when the 
 // block is actually written out to disk.
 void HeapFile::put(DbBlock *block) {
-    Dbt* key = new Dbt(block->get_block_id(), sizeof(block));
-    Dbt* data = 
+    BlockID id = block->get_block_id();
+    Dbt* key = new Dbt(&id, sizeof(id)); // key is block id; wrap it in a Dbt
+    Dbt* dataToWrite = block->get_block(); // get the Dbt that holds the block for the DbBlock
+    db.put(nullptr, key, dataToWrite, 0);
 }
 
-// BlockIDs *HeapFile::block_ids() {
-//     return new BlockIDs();
-// }
+BlockIDs *HeapFile::block_ids() {
+    BlockIDs* blockIds = new BlockIDs();
+    Dbt key;
+    Dbt data;
+    // SlottedPage block = SlottedPage(Dbt(), 0, true); // this will hold all the blocks
 
-// void HeapFile::db_open(uint flags) {
+    // Do the blockIds start from 0 or 1? Refresh on pre-increment
+    for(int blockId=1; blockId <= last; blockId++){
+        // Do I need the following 3 lines?
+        key = Dbt(&blockId, sizeof(blockId));
+        data = Dbt();
+        db.get(0, &key, &data, 0);
+        // block = SlottedPage(data, blockId); // make a SlottedPage from the Dbt containing the block of data
+        blockIds->push_back(blockId); // add the SlottedPage to the list of all the BlockIDs
+    }
+    return blockIds;
+}
 
-// }
+/* Attributes of HeapTable:
+        HeapFile file;
+   Attributes of DBRelation, which HeapTable inherits from
+        Identifier table_name;
+        ColumnNames column_names;
+        ColumnAttributes column_attributes;
+   Attributes/methods of ColumnAttribute, which holds datatype and other info for a column
+        DataType data_type;
+        virtual DataType get_data_type() { return data_type; }
+        virtual void set_data_type(DataType data_type) { this->data_type = data_type; }
+*/
+
+// ALL METHODS FOR HEAPTABLE:
+// constructors: takes the name of the relation, the columns (in order), and all the column attributes (e.g., it's data type, any constraints, is it allowed to be null, etc.) It's not the job of DbRelation to track all this information. That's done by the schema storage.
+// create: corresponds to the SQL command CREATE TABLE. At minimum, it presumably sets up the DbFile and calls its create method.
+// create_if_not_exists: corresponds to the SQL command CREATE TABLE IF NOT EXISTS. Whereas create will throw an exception if the table already exists, this method will just open the table if it already exists.
+// open: opens the table for insert, update, delete, select, and project methods
+// close: closes the table, temporarily disabling insert, update, delete, select, and project methods.
+// drop: corresponds to the SQL command DROP TABLE. Deletes the underlying DbFile.
+// insert: corresponds to the SQL command INSERT INTO TABLE. Takes a proposed row and adds it to the table. This is the method that determines the block to write it to and marshals the data and writes it to the block. It is also responsible for handling any constraints, applying defaults, etc.
+// update: corresponds to the SQL command UPDATE. Like insert, but only applies specific field changes, keeping other fields as they were before. Same logic as insert for constraints, defaults, etc. The client needs to first obtain a handle to the row that is meant to be updated either from insert or from select.
+// delete: corresponds to the SQL command DELETE FROM. Deletes a row for a given row handle (obtained from insert or select).
+// select: corresponds to the SQL query SELECT * FROM...WHERE. Returns handles to the matching rows.
+// project: extracts specific fields from a row handle (a projection).
+
+void HeapFile::db_open(uint flags) {
+
+}
 
 // HeapTable::HeapTable(Identifier table_name, ColumnNames column_names, ColumnAttributes column_attributes) : 
 //             DbRelation(table_name, column_names, column_attributes), file(table_name) {
@@ -393,42 +435,42 @@ void HeapFile::put(DbBlock *block) {
     // test function -- returns true if all tests pass
 
 
-bool test_heap_storage() {
-	ColumnNames column_names;
-	column_names.push_back("a");
-	column_names.push_back("b");
-	ColumnAttributes column_attributes;
-	ColumnAttribute ca(ColumnAttribute::INT);
-	column_attributes.push_back(ca);
-	ca.set_data_type(ColumnAttribute::TEXT);
-	column_attributes.push_back(ca);
-    HeapTable table1("_test_create_drop_cpp", column_names, column_attributes);
-    table1.create();
-    std::cout << "create ok" << std::endl;
-    table1.drop();  // drop makes the object unusable because of BerkeleyDB restriction -- maybe want to fix this some day
-    std::cout << "drop ok" << std::endl;
+// bool test_heap_storage() {
+// 	ColumnNames column_names;
+// 	column_names.push_back("a");
+// 	column_names.push_back("b");
+// 	ColumnAttributes column_attributes;
+// 	ColumnAttribute ca(ColumnAttribute::INT);
+// 	column_attributes.push_back(ca);
+// 	ca.set_data_type(ColumnAttribute::TEXT);
+// 	column_attributes.push_back(ca);
+//     HeapTable table1("_test_create_drop_cpp", column_names, column_attributes);
+//     table1.create();
+//     std::cout << "create ok" << std::endl;
+//     table1.drop();  // drop makes the object unusable because of BerkeleyDB restriction -- maybe want to fix this some day
+//     std::cout << "drop ok" << std::endl;
 
-    HeapTable table("_test_data_cpp", column_names, column_attributes);
-    table.create_if_not_exists();
-    std::cout << "create_if_not_exsts ok" << std::endl;
+//     HeapTable table("_test_data_cpp", column_names, column_attributes);
+//     table.create_if_not_exists();
+//     std::cout << "create_if_not_exsts ok" << std::endl;
 
-    ValueDict row;
-    row["a"] = Value(12);
-    row["b"] = Value("Hello!");
-    std::cout << "try insert" << std::endl;
-    table.insert(&row);
-    std::cout << "insert ok" << std::endl;
-    Handles* handles = table.select();
-    std::cout << "select ok " << handles->size() << std::endl;
-    ValueDict *result = table.project((*handles)[0]);
-    std::cout << "project ok" << std::endl;
-    Value value = (*result)["a"];
-    if (value.n != 12)
-    	return false;
-    value = (*result)["b"];
-    if (value.s != "Hello!")
-		return false;
-    table.drop();
+//     ValueDict row;
+//     row["a"] = Value(12);
+//     row["b"] = Value("Hello!");
+//     std::cout << "try insert" << std::endl;
+//     table.insert(&row);
+//     std::cout << "insert ok" << std::endl;
+//     Handles* handles = table.select();
+//     std::cout << "select ok " << handles->size() << std::endl;
+//     ValueDict *result = table.project((*handles)[0]);
+//     std::cout << "project ok" << std::endl;
+//     Value value = (*result)["a"];
+//     if (value.n != 12)
+//     	return false;
+//     value = (*result)["b"];
+//     if (value.s != "Hello!")
+// 		return false;
+//     table.drop();
 
-    return true;
-}
+//     return true;
+// }

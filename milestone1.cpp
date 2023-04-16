@@ -2,7 +2,7 @@
 #include "../sql-parser/src/sqlhelper.h"
 #include "heap_storage.h"
 #include "storage_engine.h"
-#include "heap_storage.cpp"
+// #include "heap_storage.cpp"
 #include "db_cxx.h"
 #include <iostream>
 #include <cstring>
@@ -79,8 +79,8 @@ int main(int argc, char *argv[]) {
 void test_heap_storage2(){
     HeapFile* file = new HeapFile("file.db");
     file->open();
-    file->close();
-    file->drop();
+    // file->close();
+    // file->drop();
 }
 
 std::string execute(hsql::SQLParserResult* query, std::string response) {

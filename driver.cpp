@@ -4,7 +4,7 @@ using namespace std;
 
 int main(){
     HeapFile* file = new HeapFile("file.db");
-    file->open();
+    file->create();
     file->close();
     file->drop();
     return 0;
