@@ -14,6 +14,7 @@ const std::string QUIT = "quit";
 const unsigned int BLOCK_SZ = 4096;
 const string TEST = "test";
 const char *MILESTONE1 = "milestone1.db";
+DbEnv *_DB_ENV;
 
 std::string execute(hsql::SQLParserResult* query, std::string response);
 std::string parseCreate(std::string response);
@@ -48,6 +49,8 @@ int main(int argc, char *argv[]) {
 	db.set_error_stream(env.get_error_stream());
 	db.set_re_len(BLOCK_SZ);
 	db.open(NULL, MILESTONE1, NULL, DB_RECNO, DB_CREATE | DB_TRUNCATE, 0644);
+
+    _DB_ENV = &env;
 
     std::string response;
     if(response == TEST){

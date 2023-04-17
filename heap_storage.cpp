@@ -397,9 +397,13 @@ void HeapTable::close() {
     file.close();
 }
 
-// Handle HeapTable::insert(const ValueDict *row) {
-//     return new Handle();
-// }
+Handle HeapTable::insert(const ValueDict *row) {
+    open();
+    ValueDict *new_row = validate(row);
+    Handle handle = append(new_row);
+    delete new_row;
+    return handle;
+}
 
 // void HeapTable::update(const Handle handle, const ValueDict *new_values) {
 
@@ -409,33 +413,93 @@ void HeapTable::close() {
 
 // }
 
-// Handles *HeapTable::select() {
-//     return new Handle();
-// }
+Handles *HeapTable::select() {
+    Handles* handles = new Handles();
+    BlockIDs* block_ids = file.block_ids();
+    for (auto const& block_id: *block_ids) {
+        SlottedPage* block = file.get(block_id);
+        RecordIDs* record_ids = block->ids();
+        for (auto const& record_id: *record_ids)
+            handles->push_back(Handle(block_id, record_id));
+        delete record_ids;
+        delete block;
+    }
+    delete block_ids;
+    return handles;
+}
 
 // Handles *HeapTable::select(const ValueDict *where) {
 //     return new Handle();
 // }
 
-// ValueDict *HeapTable::project(Handle handle) {
-//     return new ValueDict();
-// }
+ValueDict *HeapTable::project(Handle handle) {
+   return project(handle, &column_names);
+}
 
 // ValueDict *HeapTable::project(Handle handle, const ColumnNames *column_names) {
 //     return new ValueDict();
 // }
 
-// ValueDict *HeapTable::validate(const ValueDict *row) {
-//     return new ValueDict();
-// }
+/**
+ * Checks if given row as valid column types
+ * @param row
+ * @return new row ValueDict
+ * @throws DbRelationError if invalid data
+ */
+ValueDict *HeapTable::validate(const ValueDict *row) {
+    ValueDict *new_row = new ValueDict();
+    for (const auto& name : column_names) {
+        ValueDict::const_iterator entry = row->find(name);
+        if (entry == row->end())
+            throw DbRelationError("Incorrect data type");
+        Value new_value = entry->second;
+        (*new_row)[name] = new_value;
+    } 
+    return new_row;
+}
 
-// Handle HeapTable::append(const ValueDict *row) {
-//     return new Handle();
-// }
+Handle HeapTable::append(const ValueDict *row) {
+    Dbt* new_row = marshal(row);
+    RecordID id;
+    SlottedPage *block = file.get(file.get_last_block_id());
+    try {
+        id = block->add(new_row);
+    }
+    catch (DbBlockNoRoomError &e){
+        block = file.get_new();
+        id = block->add(new_row);
+    }
+    return Handle(file.get_last_block_id(), id);
+}
 
-// Dbt *HeapTable::marshal(const ValueDict *row) {
-//     return new Dbt();
-// }
+Dbt *HeapTable::marshal(const ValueDict *row) {
+    char *bytes = new char[DbBlock::BLOCK_SZ]; // more than we need (we insist that one row fits into DbBlock::BLOCK_SZ)
+    uint offset = 0;
+    uint col_num = 0;
+    for (auto const& column_name: this->column_names) {
+        ColumnAttribute ca = this->column_attributes[col_num++];
+        ValueDict::const_iterator column = row->find(column_name);
+        Value value = column->second;
+        if (ca.get_data_type() == ColumnAttribute::DataType::INT) {
+            *(int32_t*) (bytes + offset) = value.n;
+            offset += sizeof(int32_t);
+        } else if (ca.get_data_type() == ColumnAttribute::DataType::TEXT) {
+            uint size = value.s.length();
+            *(u_int16_t*) (bytes + offset) = size;
+            offset += sizeof(u_int16_t);
+            memcpy(bytes+offset, value.s.c_str(), size); // assume ascii for now
+            offset += size;
+        } else {
+            throw DbRelationError("Only know how to marshal INT and TEXT");
+        }
+    }
+    char *right_size_bytes = new char[offset];
+    memcpy(right_size_bytes, bytes, offset);
+    delete[] bytes;
+    Dbt *data = new Dbt(right_size_bytes, offset);
+    return data;
+    return new Dbt();
+}
 
 // ValueDict *HeapTable::unmarshal(Dbt *data) {
 //     return new ValueDict();
