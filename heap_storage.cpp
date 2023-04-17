@@ -627,9 +627,110 @@ ValueDict *HeapTable::unmarshal(Dbt *data) {
 // bool test_heap_storage(){};
     // test function -- returns true if all tests pass
 
+bool test_slotted_page() {
+    // construct one
+    char blank_space[DbBlock::BLOCK_SZ];
+    Dbt block_dbt(blank_space, sizeof(blank_space));
+    SlottedPage slot(block_dbt, 1, true);
 
+    // add a record
+    char rec1[] = "hello";
+    Dbt rec1_dbt(rec1, sizeof(rec1));
+    RecordID id = slot.add(&rec1_dbt);
+    if (id != 1)
+        std::cout << "Could not add id 1" << std::endl;
+
+    // get it back
+    Dbt *get_dbt = slot.get(id);
+    std::string expected(rec1, sizeof(rec1));
+    std::string actual((char *) get_dbt->get_data(), get_dbt->get_size());
+    delete get_dbt;
+    if (expected != actual)
+        std::cout << "Did not get 1 back, got " << actual << std::endl;
+
+    // add another record and fetch it back
+    char rec2[] = "goodbye";
+    Dbt rec2_dbt(rec2, sizeof(rec2));
+    id = slot.add(&rec2_dbt);
+    if (id != 2)
+        std::cout << "Could not add id 2" << std::endl;
+
+    // get it back
+    get_dbt = slot.get(id);
+    expected = std::string(rec2, sizeof(rec2));
+    actual = std::string((char *) get_dbt->get_data(), get_dbt->get_size());
+    delete get_dbt;
+    if (expected != actual)
+        std::cout << "Did not get 2 back, got " << actual << std::endl;
+
+    // test put with expansion (and slide and ids)
+    char rec1_rev[] = "something much bigger";
+    rec1_dbt = Dbt(rec1_rev, sizeof(rec1_rev));
+    slot.put(1, rec1_dbt);
+    // check both rec2 and rec1 after expanding put
+    get_dbt = slot.get(2);
+    expected = std::string(rec2, sizeof(rec2));
+    actual = std::string((char *) get_dbt->get_data(), get_dbt->get_size());
+    delete get_dbt;
+    if (expected != actual)
+        std::cout << "Did not get 2 back after expanding put of 1, got " << actual << std::endl;
+    get_dbt = slot.get(1);
+    expected = std::string(rec1_rev, sizeof(rec1_rev));
+    actual = std::string((char *) get_dbt->get_data(), get_dbt->get_size());
+    delete get_dbt;
+    if (expected != actual)
+        std::cout << "Did not get 2 back after expanding put of 1, got " << actual << std::endl;
+
+    // test put with contraction (and slide and ids)
+    rec1_dbt = Dbt(rec1, sizeof(rec1));
+    slot.put(1, rec1_dbt);
+    // check both rec2 and rec1 after contracting put
+    get_dbt = slot.get(2);
+    expected = std::string(rec2, sizeof(rec2));
+    actual = std::string((char *) get_dbt->get_data(), get_dbt->get_size());
+    delete get_dbt;
+    if (expected != actual)
+        std::cout << "Did not get 2 back after contracting put of 1, got " << actual << std::endl;
+    get_dbt = slot.get(1);
+    expected = std::string(rec1, sizeof(rec1));
+    actual = std::string((char *) get_dbt->get_data(), get_dbt->get_size());
+    delete get_dbt;
+    if (expected != actual)
+        std::cout << "Did not get 1 back after contracting put of 1, got " << actual << std::endl;
+
+    // test del (and ids)
+    RecordIDs *id_list = slot.ids();
+    if (id_list->size() != 2 || id_list->at(0) != 1 || id_list->at(1) != 2)
+        std::cout << "ids() was not size 2" << std::endl;
+    delete id_list;
+    slot.del(1);
+    id_list = slot.ids();
+    if (id_list->size() != 1 || id_list->at(0) != 2)
+        std::cout << "ids() was not size 1" << std::endl;
+    delete id_list;
+    get_dbt = slot.get(1);
+    if (get_dbt != nullptr)
+        std::cout << "deleted records not null" << std::endl;
+
+    // try adding something too big
+    rec2_dbt = Dbt(nullptr, DbBlock::BLOCK_SZ - 10); // too big, but only because we have a record in there
+    try {
+        slot.add(&rec2_dbt);
+        std::cout << "did not throw when add too big" << std::endl;
+    } catch (const DbBlockNoRoomError &exc) {
+        std::cout << "caught error successfully" << std::endl;
+        // test succeeded - this is the expected path
+    } catch (...) {
+        // Note that this won't catch segfault signals -- but in that case we also know the test failed
+        std::cout << "wrong type thrown when add too big" << std::endl;
+    }
+
+    return true;
+}
 
 bool test_heap_storage() {
+    if (test_slotted_page())
+        std::cout << "Passed slotted page tests" << std::endl;
 	ColumnNames column_names;
 	column_names.push_back("a");
 	column_names.push_back("b");
