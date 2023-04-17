@@ -61,6 +61,10 @@ int main(int argc, char *argv[]) {
         std::cout << "SQL> ";
         getline(std::cin, response);
 
+        if (response == TEST) {
+            test_heap_storage();
+        }
+
         char* responseArray = new char[response.length() + 1];
         strcpy(responseArray, response.c_str());
 
