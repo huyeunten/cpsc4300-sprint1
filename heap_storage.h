@@ -84,7 +84,9 @@ class HeapFile : public DbFile {
 public:
     HeapFile(std::string name) : DbFile(name), dbfilename(""), last(0), closed(true), db(_DB_ENV, 0) {}
 
-    virtual ~HeapFile() {}
+    virtual ~HeapFile() {
+        std::cout <<"In destructor" << std::endl; // this line was written by David
+    }
 
     HeapFile(const HeapFile &other) = delete;
 

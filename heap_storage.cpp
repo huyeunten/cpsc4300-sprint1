@@ -230,9 +230,13 @@ void HeapFile::create(void) {
     std::cout << std::endl << std::endl << "In create" << std::endl;
 
     // open and use DB_CREATE to create the database. DB_EXCL throws an error if the database already exists
-    db.open(NULL, (const char*)(&dbfilename), NULL, DB_RECNO, DB_CREATE | DB_EXCL| DB_TRUNCATE, 0644);
+    // returns 0 if it opened successfully, nonzero otherwise
+    int errorCode = db.open(NULL, (const char*)(&dbfilename), NULL, DB_RECNO, DB_CREATE | DB_EXCL| DB_TRUNCATE, 0644);
 
-    std::cout << std::endl << "Created" << std::endl;
+    if(errorCode != 0)
+        std::cout << "File creation failed!" << std::endl;
+    else
+        std::cout << std::endl << "Created" << std::endl;
 }
 
 void HeapFile::drop(void) {
@@ -352,7 +356,9 @@ BlockIDs *HeapFile::block_ids() {
 // open: opens the table for insert, update, delete, select, and project methods
 // close: closes the table, temporarily disabling insert, update, delete, select, and project methods.
 // drop: corresponds to the SQL command DROP TABLE. Deletes the underlying DbFile.
-// insert: corresponds to the SQL command INSERT INTO TABLE. Takes a proposed row and adds it to the table. This is the method that determines the block to write it to and marshals the data and writes it to the block. It is also responsible for handling any constraints, applying defaults, etc.
+// insert: corresponds to the SQL command INSERT INTO TABLE. Takes a proposed row and adds it to the table. 
+//         This is the method that determines the block to write it to and marshals the data and writes it to the block. 
+//         It is also responsible for handling any constraints, applying defaults, etc.
 // update: corresponds to the SQL command UPDATE. Like insert, but only applies specific field changes, keeping other fields as they were before. Same logic as insert for constraints, defaults, etc. The client needs to first obtain a handle to the row that is meant to be updated either from insert or from select.
 // delete: corresponds to the SQL command DELETE FROM. Deletes a row for a given row handle (obtained from insert or select).
 // select: corresponds to the SQL query SELECT * FROM...WHERE. Returns handles to the matching rows.
@@ -362,30 +368,34 @@ void HeapFile::db_open(uint flags) {
 
 }
 
-// HeapTable::HeapTable(Identifier table_name, ColumnNames column_names, ColumnAttributes column_attributes) : 
-//             DbRelation(table_name, column_names, column_attributes), file(table_name) {
+HeapTable::HeapTable(Identifier table_name, ColumnNames column_names, ColumnAttributes column_attributes) : 
+            DbRelation(table_name, column_names, column_attributes), file(table_name) {
 
-// }
+}
 
-// void HeapTable::create() {
+void HeapTable::create() {
+    // create a DbFile with the filename
+    file.create(); // this will throw an exception if the file already exists
+}
 
-// }
+void HeapTable::create_if_not_exists() {
+    Db db(_DB_ENV, 0); // create a DB to create the file
 
-// void HeapTable::create_if_not_exists() {
+    // create a file with the same name as the table, but don't throw an exception
+    db.open(NULL, (const char*)(&table_name), NULL, DB_RECNO, DB_CREATE | DB_TRUNCATE, 0644);
+}
 
-// }
+void HeapTable::drop() {
+    file.drop();
+}
 
-// void HeapTable::drop() {
+void HeapTable::open() {
+    file.open();
+}
 
-// }
-
-// void HeapTable::open() {
-
-// }
-
-// void HeapTable::close() {
-
-// }
+void HeapTable::close() {
+    file.close();
+}
 
 // Handle HeapTable::insert(const ValueDict *row) {
 //     return new Handle();
@@ -433,6 +443,7 @@ void HeapFile::db_open(uint flags) {
 
 // bool test_heap_storage(){};
     // test function -- returns true if all tests pass
+
 
 
 // bool test_heap_storage() {

@@ -77,8 +77,10 @@ int main(int argc, char *argv[]) {
 }
 
 void test_heap_storage2(){
-    HeapFile* file = new HeapFile("file.db");
-    file->open();
+    std::cout << "In test" << std::endl;
+    // DbFile* file = new HeapFile("file.db");
+    std::cout << "Made file " << std::endl;
+    // file->create();
     // file->close();
     // file->drop();
 }
