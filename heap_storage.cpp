@@ -484,7 +484,7 @@ Dbt *HeapTable::marshal(const ValueDict *row) {
             *(int32_t*) (bytes + offset) = value.n;
             offset += sizeof(int32_t);
         } else if (ca.get_data_type() == ColumnAttribute::DataType::TEXT) {
-            uint size = value.s.length();
+            u_int16_t size = value.s.length();
             *(u_int16_t*) (bytes + offset) = size;
             offset += sizeof(u_int16_t);
             memcpy(bytes+offset, value.s.c_str(), size); // assume ascii for now
@@ -501,9 +501,36 @@ Dbt *HeapTable::marshal(const ValueDict *row) {
     return new Dbt();
 }
 
-// ValueDict *HeapTable::unmarshal(Dbt *data) {
-//     return new ValueDict();
-// }
+ValueDict *HeapTable::unmarshal(Dbt *data) {
+    ValueDict *dict = new ValueDict();
+    Value value;
+    char *bytes = (char *) data->get_data();
+    uint offset = 0;
+    uint col_num = 0;
+    for (auto const &column : column_names) {
+        ColumnAttribute ca = column_attributes[col_num++];
+        value.data_type = ca.get_data_type();
+        if (value.data_type == ColumnAttribute::DataType::INT) {
+            value.n = *(int32_t *) (bytes + offset);
+            offset += sizeof(int32_t);
+        }
+        else if (value.data_type == ColumnAttribute::DataType::TEXT) {
+            uint size = *(int32_t *) (bytes + offset);
+            offset += sizeof(uint);
+            char buffer[DbBlock::BLOCK_SZ];
+            memcpy(buffer, bytes + offset, size);
+            buffer[size] = '\0';
+            value.s = std::string(buffer); 
+            offset += size;
+        }
+        else {
+            throw DbRelationError("Data type not supported");
+        }
+        (*dict)[column] = value;
+    }
+
+    return dict;
+}
 
 // bool test_heap_storage(){};
     // test function -- returns true if all tests pass
