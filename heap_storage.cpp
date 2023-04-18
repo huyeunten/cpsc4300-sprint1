@@ -512,10 +512,10 @@ ValueDict *HeapTable::project(Handle handle) {
  * @return a ValueDict of the row's data
  */
 ValueDict *HeapTable::project(Handle handle, const ColumnNames *column_names) {
-    SlottedPage block = file.get(handle.BlockID); // get the right block
-    Dbt* record = block.get(handle.RecordID);
+    SlottedPage* block = file.get(handle.first); // get the right block
+    Dbt* record = block->get(handle.second); // get the record
     ValueDict* unmarshaledData = unmarshal(record);
-    ValueDict result; // to hold the values of all the column names selected
+    ValueDict* result; // to hold the values of all the column names selected
 
     // go through all the column names being selected and get the values for those
     for(Identifier columnName : *column_names){
@@ -523,7 +523,7 @@ ValueDict *HeapTable::project(Handle handle, const ColumnNames *column_names) {
         // pointing to map.end() if the key doesn't exist in the map
         std::map<Identifier, Value>::iterator it = unmarshaledData->find(columnName);
         if(it != unmarshaledData->end())
-            result.insert({it->first, it->second}); // add the identifier and its value to the result 
+            result->insert({it->first, it->second}); // add the identifier and its value to the result 
     }
 
     return result;
