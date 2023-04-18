@@ -53,13 +53,15 @@ int main(int argc, char *argv[]) {
     _DB_ENV = &env;
 
     std::string response;
-    if(response == TEST){
-        test_heap_storage2();
-    }
 
     while (response != QUIT) {
         std::cout << "SQL> ";
         getline(std::cin, response);
+
+        if (response == TEST) {
+            if (test_heap_storage())
+                std::cout << "Passed heap storage tests";
+        }
 
         char* responseArray = new char[response.length() + 1];
         strcpy(responseArray, response.c_str());
