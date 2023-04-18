@@ -210,9 +210,7 @@ void *SlottedPage::address(u_int16_t offset) {
 
 // fields: name, dbfilename, last, closed, Db db
 
-// get: get a block from the database file (via the buffer manager, 
-// presumably) for a given block id. The client code can then read 
-// or modify the block via the DbBlock interface.
+
 
 // get_new: create a new empty block and add it to the database 
 // file. Returns the new block to be modified by the client via 
@@ -239,6 +237,7 @@ void HeapFile::create(void) {
         std::cout << std::endl << "Created" << std::endl;
 }
 
+// delete: delete the database file. 
 void HeapFile::drop(void) {
     std::cout << std::endl << std::endl << "In drop" << std::endl;
 
@@ -300,6 +299,9 @@ SlottedPage *HeapFile::get_new(void) {
     return page;
 }
 
+// get: get a block from the database file (via the buffer manager, 
+// presumably) for a given block id. The client code can then read 
+// or modify the block via the DbBlock interface.
 SlottedPage *HeapFile::get(BlockID block_id) {
     BlockID& blockIdByReference = block_id; // reference version of block_id to pass to SlottedPage constructor
     Dbt* key = new Dbt(&block_id, sizeof(block_id)); // the key is the block ID, wrap it in a Dbt
@@ -397,6 +399,8 @@ void HeapTable::close() {
     file.close();
 }
 
+// ValueDict: map<Identifier, Value>
+// Handle: pair<BlockID, RecordID>
 Handle HeapTable::insert(const ValueDict *row) {
     open();
     ValueDict *new_row = validate(row);
@@ -405,13 +409,39 @@ Handle HeapTable::insert(const ValueDict *row) {
     return handle;
 }
 
-// void HeapTable::update(const Handle handle, const ValueDict *new_values) {
+// update: corresponds to the SQL command UPDATE. Like insert, but only applies 
+//      specific field changes, keeping other fields as they were before. Same logic 
+//      as insert for constraints, defaults, etc. The client needs to first obtain a handle to 
+//      the row that is meant to be updated either from insert or from select.
 
-// }
+void HeapTable::update(const Handle handle, const ValueDict *new_values) {
+    
+}
 
-// void HeapTable::del(const Handle handle) {
+/**
+ * Deletes a record
+//  * @param record_id
+//  */
+// void SlottedPage::del(RecordID record_id) {
 
-// }
+// get: get a block from the database file (via the buffer manager, 
+// presumably) for a given block id. The client code can then read 
+// or modify the block via the DbBlock interface.
+// SlottedPage *HeapFile::get(BlockID block_id) {
+
+// delete: corresponds to the SQL command 
+//          DELETE FROM. Deletes a row for a given row handle 
+//          (obtained from insert or select).
+
+// Handle: pair<BlockID, RecordID>
+void HeapTable::del(const Handle handle) {
+    open();
+
+    // assume the row exists
+    SlottedPage blockToDeleteFrom = file.get(handle.BlockID); // get the block with the BlockID of the handle
+    blockToDeleteFrom.del(handle.RecordID); // delete the record with the right record ID from that block
+    file.put(blockToDeleteFrom); // write the updated block back to the file
+}
 
 Handles *HeapTable::select() {
     Handles* handles = new Handles();
@@ -432,13 +462,38 @@ Handles *HeapTable::select() {
 //     return new Handle();
 // }
 
-ValueDict *HeapTable::project(Handle handle) {
-   return project(handle, &column_names);
-}
-
-// ValueDict *HeapTable::project(Handle handle, const ColumnNames *column_names) {
-//     return new ValueDict();
+// project: extracts specific fields from a row handle (a projection).
+// ValueDict *HeapTable::project(Handle handle) {
+//    return project(handle, &column_names);
 // }
+
+// ValueDict: map<Identifier, Value>
+// Handle: pair<BlockID, RecordID>
+// ColumnNames = Vector<Identifier>
+// Value attributes:
+/*
+ColumnAttribute::DataType data_type;
+    int32_t n;
+    std::string s;
+*/
+
+ValueDict *HeapTable::project(Handle handle, const ColumnNames *column_names) {
+    SlottedPage block = file.get(handle.BlockID); // get the right block
+    Dbt* record = block.get(handle.RecordID);
+    ValueDict* unmarshaledData = unmarshal(record);
+    ValueDict result; // to hold the values of all the column names selected
+
+    // go through all the column names being selected and get the values for those
+    for(Identifier columnName : *column_names){
+        // map.find(key) returns an iterator pointing to the element w/ that key, and an iterator
+        // pointing to map.end() if the key doesn't exist in the map
+        std::map<Identifier, Value>::iterator it = unmarshaledData->find(columnName);
+        if(it != unmarshaledData->end())
+            result.insert({it->first, it->second}); // add the identifier and its value to the result 
+    }
+
+    return result;
+}
 
 /**
  * Checks if given row as valid column types
