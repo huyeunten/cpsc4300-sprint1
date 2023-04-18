@@ -13,3 +13,10 @@ heap_storage.o : heap_storage.h storage_engine.h
 
 %.o: %.cpp
 	g++ -I$(INCLUDE_DIR) $(CCFLAGS) -o "$@" "$<"
+
+clean:
+	rm *.O
+
+# change db directory if necessary
+valgrind:
+	valgrind --leak-check=full --show-leak-kinds=all ./m cpsc4300/data
